@@ -27,11 +27,11 @@ bool LightShader::Init(ID3D11Device* device, HWND hwnd)
 	return InitShader(device, hwnd, vertexShaderFilename.data(), pixelShaderFilename.data());
 }
 
-bool LightShader::Render(ID3D11DeviceContext* deviceContext, int indexCount, XMMATRIX wMatrix, XMMATRIX vMatrix, XMMATRIX pMatrix,
+bool LightShader::Render(ID3D11DeviceContext* deviceContext, int indexCount, XMMATRIX wMatrix, XMMATRIX vMatrix, XMMATRIX pMatrix, ID3D11ShaderResourceView* texture,
 	XMFLOAT3 lightDirection, XMFLOAT4 diffuseColor, XMFLOAT4 ambientColor, XMFLOAT3 cameraPosition,
 	XMFLOAT4 specularColor, float specularPower)
 {
-	if (!SetShaderParameters(deviceContext, wMatrix, vMatrix, pMatrix, lightDirection, diffuseColor, ambientColor, cameraPosition, specularColor, specularPower)) return false;
+	if (!SetShaderParameters(deviceContext, wMatrix, vMatrix, pMatrix, texture, lightDirection, diffuseColor, ambientColor, cameraPosition, specularColor, specularPower)) return false;
 
 	RenderShader(deviceContext, indexCount);
 	return true;
@@ -62,9 +62,9 @@ bool LightShader::InitShader(ID3D11Device* device, HWND hwnd, std::wstring vsFil
 	CheckSuccess(device->CreateInputLayout(polygonLayout.data(), numElements, vertexShaderBuffer->GetBufferPointer(), vertexShaderBuffer->GetBufferSize(), &m_layout));
 
 	vertexShaderBuffer->Release();
-	vertexShaderBuffer = 0;
+	vertexShaderBuffer = nullptr;
 	pixelShaderBuffer->Release();
-	pixelShaderBuffer = 0;
+	pixelShaderBuffer = nullptr;
 
 	CheckSuccess(Shader::CreateSamplerDesc(device, D3D11_FILTER_MIN_MAG_MIP_LINEAR, D3D11_TEXTURE_ADDRESS_WRAP, D3D11_TEXTURE_ADDRESS_WRAP, D3D11_TEXTURE_ADDRESS_WRAP, 0.0f, 1,
 		D3D11_COMPARISON_ALWAYS, 0, 0, 0, 0, 0, D3D11_FLOAT32_MAX));
@@ -101,8 +101,8 @@ void LightShader::ShutdownShader()
 	}
 }
 
-bool LightShader::SetShaderParameters(ID3D11DeviceContext* deviceContext, XMMATRIX worldMatrix, XMMATRIX viewMatrix, XMMATRIX projectionMatrix, XMFLOAT3 lightDirection,
-	XMFLOAT4 diffuseColor, XMFLOAT4 ambientColor, XMFLOAT3 cameraPosition, XMFLOAT4 specularColor, float specularPower)
+bool LightShader::SetShaderParameters(ID3D11DeviceContext* deviceContext, XMMATRIX worldMatrix, XMMATRIX viewMatrix, XMMATRIX projectionMatrix, ID3D11ShaderResourceView* texture,
+	XMFLOAT3 lightDirection, XMFLOAT4 diffuseColor, XMFLOAT4 ambientColor, XMFLOAT3 cameraPosition, XMFLOAT4 specularColor, float specularPower)
 {
 
 	worldMatrix = XMMatrixTranspose(worldMatrix);
@@ -118,7 +118,7 @@ bool LightShader::SetShaderParameters(ID3D11DeviceContext* deviceContext, XMMATR
 	tmpMatrix.world = worldMatrix;
 	tmpMatrix.view = viewMatrix;
 	tmpMatrix.projection = projectionMatrix;
-	if (NeedsUpdating("model", &tmpMatrix))
+	if (NeedsUpdating("model", &tmpMatrix, sizeof(MatrixBufferType)))
 	{
 		CheckSuccess(deviceContext->Map(m_matrixBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource));
 		auto matrixBufferPtr = (MatrixBufferType*)mappedResource.pData;
@@ -136,7 +136,7 @@ bool LightShader::SetShaderParameters(ID3D11DeviceContext* deviceContext, XMMATR
 	CameraBufferType tmpCamera;
 	tmpCamera.cameraPoisition = cameraPosition;
 	tmpCamera.padding = 0.0f;
-	if (NeedsUpdating("camera", &tmpCamera))
+	if (NeedsUpdating("camera", &tmpCamera, sizeof(CameraBufferType)))
 	{
 		CheckSuccess(deviceContext->Map(m_cameraBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource));
 		auto cameraBufferPtr = (CameraBufferType*)mappedResource.pData;
@@ -151,10 +151,10 @@ bool LightShader::SetShaderParameters(ID3D11DeviceContext* deviceContext, XMMATR
 
 	/************************* PIXEL SHADERS ************************/
 
-	//bufferNumber = 0;
-	//deviceContext->PSSetShaderResources(bufferNumber, 1, &texture);
+	bufferNumber = 0;
+	deviceContext->PSSetShaderResources(bufferNumber, 1, &texture);
 
-	bufferNumber = 1;
+	bufferNumber = 0;
 
 	LightBufferType tmpLight;
 	tmpLight.ambientColor = ambientColor;
@@ -162,7 +162,7 @@ bool LightShader::SetShaderParameters(ID3D11DeviceContext* deviceContext, XMMATR
 	tmpLight.lightDirection = lightDirection;
 	tmpLight.specularColor = specularColor;
 	tmpLight.specularPower = specularPower;
-	if (NeedsUpdating("light", &tmpLight))
+	if (NeedsUpdating("light", &tmpLight, sizeof(LightBufferType)))
 	{
 		CheckSuccess(deviceContext->Map(m_lightBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource));
 		auto lightBufferPtr = (LightBufferType*)mappedResource.pData;

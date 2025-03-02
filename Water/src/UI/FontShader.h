@@ -1,6 +1,6 @@
 #pragma once
-#include "Shader.h"
-#include "Utils.h"
+#include "../Shader.h"
+#include "../Utils.h"
 class FontShader : public Shader
 {
 private:

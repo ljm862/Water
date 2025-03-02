@@ -126,10 +126,17 @@ void Shader::CheckSuccess(HRESULT hResult)
 		throw "Failed to Init Shader" + GetShaderName();
 	}
 }
-bool Shader::NeedsUpdating(std::string name, void* data)
+
+// Should maybe store a changed bit on the objects themselves. Then check that bit instead of deep checking?
+// Or have my own cpu-side buffer and compare the buffer slots to the object and its expected slot? Both?
+bool Shader::NeedsUpdating(std::string name, void* data, size_t dataSize)
 {
-	return (m_shaderCache.find(name) == m_shaderCache.end()) ||
-		(m_shaderCache.find(name) != m_shaderCache.end() && m_shaderCache[name] != data);
+	auto it = m_shaderCache.find(name);
+	if (it == m_shaderCache.end()) return true;
+
+	return std::memcmp(it->second, data, dataSize) != 0;
+	//return (m_shaderCache.find(name) == m_shaderCache.end()) ||
+	//	(m_shaderCache.find(name) != m_shaderCache.end() && m_shaderCache[name] != data);
 }
 
 void Shader::RenderShader(ID3D11DeviceContext*, int)

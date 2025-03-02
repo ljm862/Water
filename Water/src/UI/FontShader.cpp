@@ -88,13 +88,13 @@ bool FontShader::SetShaderParameters(ID3D11DeviceContext* deviceContext, XMMATRI
 
 
 	D3D11_MAPPED_SUBRESOURCE mappedResource;
-	unsigned int bufferNumber = 0;
+	unsigned int bufferNumber = 4;
 
 	MatrixBufferType tmpMatrix;
 	tmpMatrix.world = worldMatrix;
 	tmpMatrix.view = viewMatrix;
 	tmpMatrix.projection = projectionMatrix;
-	if (NeedsUpdating("model", &tmpMatrix))
+	if (NeedsUpdating("model", &tmpMatrix, sizeof(MatrixBufferType)))
 	{
 		CheckSuccess(deviceContext->Map(m_matrixBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource));
 		auto matrixBufferPtr = (MatrixBufferType*)mappedResource.pData;
@@ -106,25 +106,27 @@ bool FontShader::SetShaderParameters(ID3D11DeviceContext* deviceContext, XMMATRI
 
 		//Set the cbuff and tex resource
 		deviceContext->VSSetConstantBuffers(bufferNumber, 1, &m_matrixBuffer);
-		deviceContext->PSSetShaderResources(0, 1, &texture);
 
 		m_shaderCache["model"] = &tmpMatrix;
 	}
 
 	PixelBufferType tmpPixel;
 	tmpPixel.pixelColor = pixelColor;
-	if (NeedsUpdating("pixel", &tmpPixel))
-	{
+	//if (NeedsUpdating("pixel", &tmpPixel, sizeof(PixelBufferType)))
+	//{
 		CheckSuccess(deviceContext->Map(m_pixelBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource));
 		auto dataPtr2 = (PixelBufferType*)mappedResource.pData;
 		dataPtr2->pixelColor = pixelColor;
 
-		bufferNumber = 0;
+		bufferNumber = 1;
+
+		deviceContext->PSSetShaderResources(bufferNumber, 1, &texture);
+
 		deviceContext->PSSetConstantBuffers(bufferNumber, 1, &m_pixelBuffer);
 
 		deviceContext->Unmap(m_pixelBuffer, 0);
 		m_shaderCache["pixel"] = &tmpPixel;
-	}
+	//}
 
 	return true;
 }
@@ -136,7 +138,7 @@ void FontShader::RenderShader(ID3D11DeviceContext* deviceContext, int indexCount
 	deviceContext->VSSetShader(m_vertexShader, NULL, 0);
 	deviceContext->PSSetShader(m_pixelShader, NULL, 0);
 
-	deviceContext->PSSetSamplers(0, 1, &m_sampleState);
+	deviceContext->PSSetSamplers(1, 1, &m_sampleState);
 
 	deviceContext->DrawIndexed(indexCount, 0, 0);
 }

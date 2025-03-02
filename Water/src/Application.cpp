@@ -18,10 +18,10 @@ bool Application::Init(HWND hwnd)
 	}
 
 	m_Camera = std::make_unique<Camera>();
-	m_Camera->SetPosition(0.0f, 2.0f, -15.0f);
+	m_Camera->SetPosition(0.0f, 5.0f, -30.0f);
 
 	m_Model = std::make_unique<Model>();
-	if (!m_Model->Init(m_Direct3D->GetDevice(), m_Direct3D->GetDeviceContext(), "src/resources/models/plane.mdl")) return false;
+	if (!m_Model->Init(m_Direct3D->GetDevice(), m_Direct3D->GetDeviceContext(), "src/resources/models/plane.mdl", "src/resources/textures/stone01.tga")) return false;
 
 	m_LightShader = std::make_unique<LightShader>();
 	if (!m_LightShader->Init(m_Direct3D->GetDevice(), hwnd)) return false;
@@ -31,12 +31,19 @@ bool Application::Init(HWND hwnd)
 	if (!m_FontShader->Init(m_Direct3D->GetDevice(), hwnd)) return false;
 	m_ShaderList.push_back(m_FontShader.get());
 
+	m_WaterShader = std::make_unique<WaterShader>();
+	if (!m_WaterShader->Init(m_Direct3D->GetDevice(), hwnd)) return false;
+	m_ShaderList.push_back(m_WaterShader.get());
+
 	m_WorldLight = std::make_unique<Light>();
 	m_WorldLight->SetAmbientColor(0.1f, 0.1f, 0.1f, 1.0f);
 	m_WorldLight->SetDiffuseColor(1.0f, 1.0f, 1.0f, 1.0f);
-	m_WorldLight->SetDirection(1.0f, 0.0f, 1.0f);
+	m_WorldLight->SetDirection(0.0f, -1.0f, 0.0f);
 	m_WorldLight->SetSpecularColor(1.0f, 1.0f, 1.0f, 1.0f);
 	m_WorldLight->SetSpecularPower(32.0f);
+
+	//TODO: Wave Generator class
+	GenerateWaves();
 
 	m_FrameTimer = make_unique<FrameTimer>();
 	if (!m_FrameTimer->Init()) return false;
@@ -108,7 +115,7 @@ void Application::Shutdown()
 
 bool Application::Run()
 {
-	ClearShaderCaches();
+	UpdateWaveTimes();
 	UpdateFps();
 	return ProcessFrame();
 }
@@ -117,7 +124,7 @@ bool Application::Run()
 // then does the point lights and then any post processing.
 // Then a 2d renderer on top of that which does all the UI stuff after
 bool Application::ProcessFrame() {
-	XMMATRIX worldMatrix, viewMatrix, projectionMatrix, translateMatrix;
+	XMMATRIX worldMatrix, viewMatrix, projectionMatrix;
 
 	m_Direct3D->BeginScene(0.0f, 0.0f, 0.0f, 1.0f);
 
@@ -126,19 +133,16 @@ bool Application::ProcessFrame() {
 	m_Direct3D->GetWorldMatrix(worldMatrix);
 	m_Camera->GetViewMatrix(viewMatrix);
 	m_Direct3D->GetProjectionMatrix(projectionMatrix);
-	XMMATRIX orthoMatrix, worldMatrix2d, viewMatrix2d;
-	m_Direct3D->GetWorldMatrix(worldMatrix2d);
-	m_Camera->GetViewMatrix(viewMatrix2d);
-	m_Direct3D->GetOrthoMatrix(orthoMatrix);
-
-	translateMatrix = XMMatrixTranslation(0.0f, 0.0f, 0.0f);
-	worldMatrix = XMMatrixMultiply(worldMatrix, translateMatrix);
 
 	if (!RenderObject(worldMatrix, viewMatrix, projectionMatrix, m_Model.get())) return false;
 
 	/************* 2D Render *****************/
 	m_Direct3D->TurnZBufferOff();
 
+	XMMATRIX orthoMatrix, worldMatrix2d, viewMatrix2d;
+	m_Direct3D->GetWorldMatrix(worldMatrix2d);
+	m_Camera->GetViewMatrix(viewMatrix2d);
+	m_Direct3D->GetOrthoMatrix(orthoMatrix);
 	// If the viewMatrix is not a simple default one, rectify that here as it needs to point to the camera.
 
 	///////// UI /////////////
@@ -164,8 +168,11 @@ bool Application::ProcessFrame() {
 bool Application::RenderObject(XMMATRIX worldMatrix, XMMATRIX viewMatrix, XMMATRIX projectionMatrix, Model* model)
 {
 	model->Render(m_Direct3D->GetDeviceContext());
-	return m_LightShader->Render(m_Direct3D->GetDeviceContext(), model->GetIndexCount(), worldMatrix, viewMatrix, projectionMatrix, m_WorldLight->GetDirection(), m_WorldLight->GetDiffuseColor(), m_WorldLight->GetAmbientColor(),
-		m_Camera->GetPosition(), m_WorldLight->GetSpecularColor(), m_WorldLight->GetSpecularPower());
+	//return m_LightShader->Render(m_Direct3D->GetDeviceContext(), model->GetIndexCount(), worldMatrix, viewMatrix, projectionMatrix, model->GetTexture(), m_WorldLight->GetDirection(),
+	//	m_WorldLight->GetDiffuseColor(), m_WorldLight->GetAmbientColor(), m_Camera->GetPosition(), m_WorldLight->GetSpecularColor(), m_WorldLight->GetSpecularPower());
+
+	return m_WaterShader->Render(m_Direct3D->GetDeviceContext(), model->GetIndexCount(), worldMatrix, viewMatrix, projectionMatrix, m_WorldLight->GetDirection(), 
+		m_WorldLight->GetDiffuseColor(), m_WorldLight->GetAmbientColor(), m_WorldLight->GetSpecularColor(), m_WorldLight->GetSpecularPower(), m_Waves);
 }
 
 bool Application::UpdateFps()
@@ -221,10 +228,57 @@ XMFLOAT3 Application::GetFpsColor(int fps)
 	return XMFLOAT3(1.0f, 1.0f, 1.0f);
 }
 
-void Application::ClearShaderCaches()
+void Application::GenerateWaves()
 {
-	for (int i = 0; i < m_ShaderList.size(); i++)
+	float medianWavelength = 1.0f;
+	float wavelengthRange = 1.0f;
+	float medianDirection = 0.0f;
+	float directionalRange = 30.0f;
+	float medianAmplitude = 1.0f;
+	float medianSpeed = 1.0f;
+	float speedRange = 0.1f;
+	std::random_device dev;
+	std::mt19937 rng(dev());
+
+	auto wavelengthMin = medianWavelength / (1.0f + wavelengthRange);
+	auto wavelengthMax = medianWavelength * (1.0f + wavelengthRange);
+	auto directionMin = medianDirection - directionalRange;
+	auto directionMax = medianDirection + directionalRange;
+	auto speedMin = (std::max)(0.01f, medianSpeed - speedRange);
+	auto speedMax = medianSpeed + speedRange;
+	auto ampOverLen = medianAmplitude / medianWavelength;
+	auto minPoint = XMFLOAT2(-5.0f, -5.0f);
+	auto maxPoint = XMFLOAT2(5.0f, 5.0f);
+
+	std::uniform_int_distribution<std::mt19937::result_type> dist6(1, 6);
+	std::uniform_real_distribution<float> banana(0, 3);
+
+
+	for (int i = 0; i < NUM_WAVES; i++)
 	{
-		m_ShaderList[i]->ClearCache();
+		std::uniform_real_distribution<float> wavelengthGen(wavelengthMin, wavelengthMax);
+		auto wavelength = wavelengthGen(rng);
+		std::uniform_real_distribution<float> directionGen(directionMin, directionMax);
+		auto direction = directionGen(rng);
+		std::uniform_real_distribution<float> speedGen(speedMin, speedMax);
+		auto speed = speedGen(rng);
+		std::uniform_real_distribution<float> originXGen(minPoint.x * 2, maxPoint.x);
+		auto originX = originXGen(rng);
+		std::uniform_real_distribution<float> originYGen(minPoint.y * 2, maxPoint.y);
+		auto originY = originYGen(rng);
+		auto amplitude = wavelength * ampOverLen;
+		auto origin = XMFLOAT2(originX, originY);
+
+		Wave wi;
+		wi.Init(wavelength, amplitude, speed, direction, origin);
+		m_Waves.push_back(wi);
+	}
+}
+
+void Application::UpdateWaveTimes()
+{
+	for (int i = 0; i < NUM_WAVES; i++)
+	{
+		m_Waves[i].UpdateTime();
 	}
 }

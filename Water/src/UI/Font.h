@@ -1,7 +1,7 @@
 #pragma once
 #include <DirectXMath.h>
 #include <fstream>
-#include "Texture.h"
+#include "../Texture.h"
 using namespace DirectX;
 using namespace std;
 class Font

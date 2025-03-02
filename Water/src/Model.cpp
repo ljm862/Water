@@ -7,16 +7,18 @@ Model::~Model()
 {
 }
 
-bool Model::Init(ID3D11Device* device, ID3D11DeviceContext* deviceContext, std::string modelFileName)
+bool Model::Init(ID3D11Device* device, ID3D11DeviceContext* deviceContext, std::string modelFileName, std::string textureFileName)
 {
 	if (!LoadModelV0(modelFileName)) return false;
 	if (!InitBuffers(device)) return false;
+	if (!LoadTexture(device, deviceContext, textureFileName)) return false;
 
 	return true;
 }
 
 void Model::Shutdown()
 {
+	ReleaseTexture();
 	ShutdownBuffers();
 	ReleaseModel();
 }
@@ -49,6 +51,11 @@ void Model::ShutdownBuffers()
 void Model::ReleaseModel()
 {
 	m_model.clear();
+}
+
+ID3D11ShaderResourceView* Model::GetTexture()
+{
+	return m_texture->GetTexture();
 }
 
 bool Model::InitBuffers(ID3D11Device* device)
@@ -151,4 +158,20 @@ bool Model::CreateBuffer(ID3D11Device* device, ID3D11Buffer** memberBuffer, D3D1
 	data.SysMemSlicePitch = sysMemSlicePitch;
 
 	return !FAILED(device->CreateBuffer(&buffer, &data, memberBuffer));
+}
+
+bool Model::LoadTexture(ID3D11Device* device, ID3D11DeviceContext* deviceContext, std::string filename)
+{
+	m_texture = std::make_unique<Texture>();
+	return m_texture->Init(device, deviceContext, filename);
+}
+
+void Model::ReleaseTexture()
+{
+	if (m_texture)
+	{
+		m_texture->Shutdown();
+	}
+
+	m_texture.reset();
 }

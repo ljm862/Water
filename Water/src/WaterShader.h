@@ -1,8 +1,12 @@
 #pragma once
+#include <algorithm>
+
 #include "Shader.h"
 #include "Utils.h"
+#include "Wave.h"
 
-class LightShader : public Shader
+const int NUM_WAVES = 4;
+class WaterShader : public Shader
 {
 private:
 	struct MatrixBufferType
@@ -11,6 +15,12 @@ private:
 		XMMATRIX view;
 		XMMATRIX projection;
 	};
+
+	struct WaveBufferType
+	{
+		Wave::OptimisedWaveType waves[NUM_WAVES];
+	};
+
 
 	struct CameraBufferType
 	{
@@ -28,25 +38,22 @@ private:
 	};
 
 public:
-	LightShader();
-	~LightShader();
-
+	WaterShader();
+	~WaterShader();
 	std::string GetShaderName() override;
 	bool Init(ID3D11Device*, HWND) override;
-	bool Render(ID3D11DeviceContext*, int, XMMATRIX, XMMATRIX, XMMATRIX, ID3D11ShaderResourceView*, XMFLOAT3, XMFLOAT4, XMFLOAT4, XMFLOAT3, XMFLOAT4, float);
+	bool Render(ID3D11DeviceContext*, int, XMMATRIX, XMMATRIX, XMMATRIX, XMFLOAT3, XMFLOAT4, XMFLOAT4, XMFLOAT4, float, std::vector<Wave>);
 
 private:
 	bool InitShader(ID3D11Device*, HWND, std::wstring, std::wstring) override;
 	void ShutdownShader() override;
 	void RenderShader(ID3D11DeviceContext*, int) override;
-	bool SetShaderParameters(ID3D11DeviceContext*, XMMATRIX, XMMATRIX, XMMATRIX, ID3D11ShaderResourceView*, XMFLOAT3, XMFLOAT4, XMFLOAT4, XMFLOAT3, XMFLOAT4, float);
+	bool SetShaderParameters(ID3D11DeviceContext*, XMMATRIX, XMMATRIX, XMMATRIX, LightBufferType, WaveBufferType);
 
 
 private:
 	ID3D11Buffer* m_lightBuffer;
-	ID3D11Buffer* m_cameraBuffer;
-	ID3D11Buffer* m_lightColorBuffer;
-	ID3D11Buffer* m_lightPositionBuffer;
+	ID3D11Buffer* m_waveBuffer;
 
 };
 

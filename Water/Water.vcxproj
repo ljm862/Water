@@ -129,8 +129,8 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="src\Font.h" />
-    <ClInclude Include="src\FontShader.h" />
+    <ClInclude Include="src\UI\Font.h" />
+    <ClInclude Include="src\UI\FontShader.h" />
     <ClInclude Include="src\FrameTimer.h" />
     <ClInclude Include="src\Light.h" />
     <ClInclude Include="src\LightShader.h" />
@@ -143,11 +143,13 @@
     <ClInclude Include="src\Resource.h" />
     <ClInclude Include="src\Utils.h" />
     <ClInclude Include="src\Texture.h" />
-    <ClInclude Include="src\Text.h" />
+    <ClInclude Include="src\UI\Text.h" />
+    <ClInclude Include="src\WaterShader.h" />
+    <ClInclude Include="src\Wave.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\Font.cpp" />
-    <ClCompile Include="src\FontShader.cpp" />
+    <ClCompile Include="src\UI\Font.cpp" />
+    <ClCompile Include="src\UI\FontShader.cpp" />
     <ClCompile Include="src\FrameTimer.cpp" />
     <ClCompile Include="src\Light.cpp" />
     <ClCompile Include="src\LightShader.cpp" />
@@ -159,7 +161,9 @@
     <ClCompile Include="src\Model.cpp" />
     <ClCompile Include="src\Utils.cpp" />
     <ClCompile Include="src\Texture.cpp" />
-    <ClCompile Include="src\Text.cpp" />
+    <ClCompile Include="src\UI\Text.cpp" />
+    <ClCompile Include="src\WaterShader.cpp" />
+    <ClCompile Include="src\Wave.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="Water.rc" />
@@ -174,6 +178,8 @@
     <None Include="src\shaders\font.vs" />
     <None Include="src\shaders\light.ps" />
     <None Include="src\shaders\light.vs" />
+    <None Include="src\shaders\Water.ps" />
+    <None Include="src\shaders\Water.vs" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

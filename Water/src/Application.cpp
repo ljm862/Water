@@ -18,10 +18,12 @@ bool Application::Init(HWND hwnd)
 	}
 
 	m_Camera = std::make_unique<Camera>();
-	m_Camera->SetPosition(0.0f, 5.0f, -30.0f);
+	m_Camera->SetPosition(0.0f, 1.5f, -40.0f);
+	//m_Camera->SetPosition(0.0f, 30.0f, -100.0f);
+	m_Camera->SetRotation(20.0f, 0.0f, 0.0f);
 
 	m_Model = std::make_unique<Model>();
-	if (!m_Model->Init(m_Direct3D->GetDevice(), m_Direct3D->GetDeviceContext(), "src/resources/models/plane.mdl", "src/resources/textures/stone01.tga")) return false;
+	if (!m_Model->Init(m_Direct3D->GetDevice(), m_Direct3D->GetDeviceContext(), "src/resources/models/plane.obj", "src/resources/textures/stone01.tga")) return false;
 
 	m_LightShader = std::make_unique<LightShader>();
 	if (!m_LightShader->Init(m_Direct3D->GetDevice(), hwnd)) return false;
@@ -53,7 +55,7 @@ bool Application::Init(HWND hwnd)
 
 	std::string fpsString = "FPS: 0";
 	m_FpsString = make_unique<Text>();
-	if (!m_FpsString->Init(m_Direct3D->GetDevice(), m_Direct3D->GetDeviceContext(), width, height, 32, m_Font.get(), fpsString, 10, 10, XMFLOAT3(0.0f, 1.0f, 0.0f))) return false;
+	if (!m_FpsString->Init(m_Direct3D->GetDevice(), m_Direct3D->GetDeviceContext(), width, height, 32, m_Font.get(), fpsString, 20, 20, XMFLOAT3(0.0f, 1.0f, 0.0f))) return false;
 
 	std::string frameTimeString = "Frame: 0.0000ms";
 	m_FrameTimeString = make_unique<Text>();
@@ -147,6 +149,7 @@ bool Application::ProcessFrame() {
 
 	///////// UI /////////////
 
+	//TODO: Camera rotation doesn't seem to be considered for UI
 	m_Direct3D->EnableAlphaBlending();
 	m_FpsString->Render(m_Direct3D->GetDeviceContext());
 	if (!m_FontShader->Render(m_Direct3D->GetDeviceContext(), m_FpsString->GetIndexCount(), worldMatrix2d, viewMatrix2d, orthoMatrix, m_Font->GetTexture(), m_FpsString->GetPixelColor())) return false;
@@ -168,10 +171,10 @@ bool Application::ProcessFrame() {
 bool Application::RenderObject(XMMATRIX worldMatrix, XMMATRIX viewMatrix, XMMATRIX projectionMatrix, Model* model)
 {
 	model->Render(m_Direct3D->GetDeviceContext());
-	//return m_LightShader->Render(m_Direct3D->GetDeviceContext(), model->GetIndexCount(), worldMatrix, viewMatrix, projectionMatrix, model->GetTexture(), m_WorldLight->GetDirection(),
+	//m_LightShader->Render(m_Direct3D->GetDeviceContext(), model->GetIndexCount(), worldMatrix, viewMatrix, projectionMatrix, model->GetTexture(), m_WorldLight->GetDirection(),
 	//	m_WorldLight->GetDiffuseColor(), m_WorldLight->GetAmbientColor(), m_Camera->GetPosition(), m_WorldLight->GetSpecularColor(), m_WorldLight->GetSpecularPower());
 
-	return m_WaterShader->Render(m_Direct3D->GetDeviceContext(), model->GetIndexCount(), worldMatrix, viewMatrix, projectionMatrix, m_WorldLight->GetDirection(), 
+	return m_WaterShader->Render(m_Direct3D->GetDeviceContext(), model->GetIndexCount(), worldMatrix, viewMatrix, projectionMatrix, m_WorldLight->GetDirection(), m_Camera->GetPosition(),
 		m_WorldLight->GetDiffuseColor(), m_WorldLight->GetAmbientColor(), m_WorldLight->GetSpecularColor(), m_WorldLight->GetSpecularPower(), m_Waves);
 }
 
@@ -206,6 +209,11 @@ bool Application::UpdateFps()
 	m_FrameTimeString->SetText(frameString);
 	if (!m_FrameTimeString->UpdateText(m_Direct3D->GetDeviceContext(), m_Font.get(), 100, 50, color)) return false;
 
+#ifdef DEBUG
+	std::cout << finalString << std::endl;
+	std::cout << frameString << std::endl;
+#endif
+
 	return true;
 }
 
@@ -230,12 +238,12 @@ XMFLOAT3 Application::GetFpsColor(int fps)
 
 void Application::GenerateWaves()
 {
-	float medianWavelength = 1.0f;
+	float medianWavelength = 10.0f;
 	float wavelengthRange = 1.0f;
 	float medianDirection = 0.0f;
 	float directionalRange = 30.0f;
 	float medianAmplitude = 1.0f;
-	float medianSpeed = 1.0f;
+	float medianSpeed = 0.2f;
 	float speedRange = 0.1f;
 	std::random_device dev;
 	std::mt19937 rng(dev());
@@ -251,7 +259,6 @@ void Application::GenerateWaves()
 	auto maxPoint = XMFLOAT2(5.0f, 5.0f);
 
 	std::uniform_int_distribution<std::mt19937::result_type> dist6(1, 6);
-	std::uniform_real_distribution<float> banana(0, 3);
 
 
 	for (int i = 0; i < NUM_WAVES; i++)

@@ -17,6 +17,8 @@
 #include "UI/FontShader.h"
 #include "UI/Text.h"
 
+#define DEBUG
+
 const bool FULL_SCREEN = false;
 const int VSYNC_ENABLED = 0;
 const float SCREEN_DEPTH = 1000.0f;

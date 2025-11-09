@@ -1,6 +1,36 @@
 //Texture2D shaderTexture : register(t0);
 //SamplerState SampleType : register(s0);
 
+#define FBM
+
+#ifdef FBM
+#define NUM_WAVES 64
+#define SEED 0
+#define SEEDA 1253.2131f
+#define FREQ 1.0f
+#define FREQM 1.18f
+#define AMP 1.0f
+#define AMPM 0.82f
+#define SPD 2.0f
+#define SPDA 1.07f
+#define HGT 1.0f
+#define MAX 1.0f
+#define OFF 1.0f
+
+struct Wave 
+{
+    float2 direction;
+    float2 origin;
+    float4 fapsProperties; // x=frequency, y=amplitude, z=phase, w=steepness 
+    float4 time; // x=time, others are padding
+};
+
+cbuffer Waves : register(b1)
+{
+    Wave waves[NUM_WAVES];
+};
+#endif
+
 cbuffer LightBuffer : register(b0)
 {
 	float4 ambientColor;
@@ -15,9 +45,81 @@ struct PixelInput
     float4 position: SV_POSITION;
     float4 worldPosition: POSITION;
     float3 normal: NORMAL;
+	float3 viewDirection: TEXCOORD0;
 };
 
 float4 WaterPixelShader(PixelInput input) : SV_TARGET
 {
-	return float4(0.0f, 0.412f, 0.58f, 1.0f);
+	float4 color = float4(0.0f, 0.412f, 0.58f, 1.0f);
+	//float4 color = float4(1.0f, 0.0f, 0.0f, 1.0f);
+
+#ifdef FBM
+	float f = FREQ;
+	float a = AMP;
+	float spd = SPD;
+	float seed = SEED;
+	float3 v = input.worldPosition;
+	float ampSum = 0.0f;
+
+	float2 n = 0.0f;
+	
+    for (int wi = 0; wi < NUM_WAVES; wi++)
+    {
+        Wave w = waves[wi];
+		float2 d = normalize(float2(cos(seed), sin(seed)));
+		float x = dot(d, v.xz) * f + w.time.x * spd;
+
+		float wave = a * exp(MAX * sin(x) - OFF);
+		float2 dw = f * d * (MAX * wave * cos(x));
+
+		n += dw;
+
+		ampSum += a;
+        f *= FREQM;
+        a *= AMPM;
+        spd *= SPDA;
+        seed += SEEDA;
+	}
+
+	n = n / ampSum;
+	float3 normal = normalize(float3(-n.x, 1.0, -n.y));
+#else
+	float3 normal = input.normal;
+#endif
+
+	float lightIntensity;
+	float3 lightDir = -lightDirection;
+	float3 halfDir = normalize(lightDir + input.viewDirection);
+	float3 diffuse = diffuseColor;
+
+	float lightStr = dot(normal, lightDir);
+	lightIntensity = saturate(lightStr);
+
+	if(lightIntensity > 0.0f)
+	{
+		diffuse *= lightIntensity;
+	}
+
+	float3 reflect = diffuse / 3.14159265;
+	diffuse *= reflect;
+
+	float3 fresnelNormal = normal;
+	fresnelNormal *= 1.5f;
+	float base = 1 - dot(input.viewDirection, fresnelNormal);
+	float exponent = pow(base, 5.0f);
+	float R = exponent * (1.0f - exponent);
+	float3 fresnel = diffuseColor * R;
+
+	float3 specNormal = normal;
+	float spec = pow(dot(specNormal, halfDir), specularPower) * lightIntensity;
+	float3 specular = specularColor * spec;
+
+	base = 1 - dot(input.viewDirection, halfDir);
+	exponent = pow(base, 5.0f);
+	R = exponent * (1.0f - exponent);
+	specular *= R;
+
+	float3 lights = diffuse + ambientColor.xyz + specular + fresnel;
+	float3 output = color.xyz * lights;
+	return float4(output, 1.0f);
 }

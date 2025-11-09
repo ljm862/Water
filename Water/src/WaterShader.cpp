@@ -26,7 +26,7 @@ bool WaterShader::Init(ID3D11Device* device, HWND hwnd)
 	return InitShader(device, hwnd, vertexShaderFilename.data(), pixelShaderFilename.data());
 }
 
-bool WaterShader::Render(ID3D11DeviceContext* deviceContext, int indexCount, XMMATRIX wMatrix, XMMATRIX vMatrix, XMMATRIX pMatrix, XMFLOAT3 lightDirection, XMFLOAT4 diffuseColor, XMFLOAT4 ambientColor,
+bool WaterShader::Render(ID3D11DeviceContext* deviceContext, int indexCount, XMMATRIX wMatrix, XMMATRIX vMatrix, XMMATRIX pMatrix, XMFLOAT3 lightDirection, XMFLOAT3 cameraPosition, XMFLOAT4 diffuseColor, XMFLOAT4 ambientColor,
 	XMFLOAT4 specularColor, float specularPower, std::vector<Wave> waves)
 {
 	LightBufferType lightBufferObj;
@@ -42,7 +42,7 @@ bool WaterShader::Render(ID3D11DeviceContext* deviceContext, int indexCount, XMM
 		waveBufferObj.waves[i] = waves[i].GetOptimisedBuffer();
 	}
 
-	if (!SetShaderParameters(deviceContext, wMatrix, vMatrix, pMatrix, lightBufferObj, waveBufferObj)) return false;
+	if (!SetShaderParameters(deviceContext, wMatrix, vMatrix, pMatrix, lightBufferObj, waveBufferObj, cameraPosition)) return false;
 
 	RenderShader(deviceContext, indexCount);
 	return true;
@@ -78,8 +78,9 @@ bool WaterShader::InitShader(ID3D11Device* device, HWND hwnd, std::wstring vsFil
 	pixelShaderBuffer = nullptr;
 
 	if (Utils::SetupAndCreateBuffer(device, &m_matrixBuffer, D3D11_USAGE_DYNAMIC, sizeof(MatrixBufferType), D3D11_BIND_CONSTANT_BUFFER, D3D11_CPU_ACCESS_WRITE, 0, 0)) return false;
-	if (Utils::SetupAndCreateBuffer(device, &m_waveBuffer, D3D11_USAGE_DYNAMIC, sizeof(MatrixBufferType), D3D11_BIND_CONSTANT_BUFFER, D3D11_CPU_ACCESS_WRITE, 0, 0)) return false;
+	if (Utils::SetupAndCreateBuffer(device, &m_waveBuffer, D3D11_USAGE_DYNAMIC, sizeof(WaveBufferType), D3D11_BIND_CONSTANT_BUFFER, D3D11_CPU_ACCESS_WRITE, 0, 0)) return false;
 	if (Utils::SetupAndCreateBuffer(device, &m_lightBuffer, D3D11_USAGE_DYNAMIC, sizeof(LightBufferType), D3D11_BIND_CONSTANT_BUFFER, D3D11_CPU_ACCESS_WRITE, 0, 0)) return false;
+	if (Utils::SetupAndCreateBuffer(device, &m_cameraBuffer, D3D11_USAGE_DYNAMIC, sizeof(CameraBufferType), D3D11_BIND_CONSTANT_BUFFER, D3D11_CPU_ACCESS_WRITE, 0, 0)) return false;
 
 	return true;
 }
@@ -102,6 +103,11 @@ void WaterShader::ShutdownShader()
 		m_waveBuffer->Release();
 		m_waveBuffer = nullptr;
 	}
+	if (m_cameraBuffer)
+	{
+		m_cameraBuffer->Release();
+		m_cameraBuffer = nullptr;
+	}
 }
 
 void WaterShader::RenderShader(ID3D11DeviceContext* deviceContext, int indexCount)
@@ -114,7 +120,8 @@ void WaterShader::RenderShader(ID3D11DeviceContext* deviceContext, int indexCoun
 	deviceContext->DrawIndexed(indexCount, 0, 0);
 }
 
-bool WaterShader::SetShaderParameters(ID3D11DeviceContext* deviceContext, XMMATRIX worldMatrix, XMMATRIX viewMatrix, XMMATRIX projectionMatrix, LightBufferType lightBufferObj, WaveBufferType waveBufferObj)
+bool WaterShader::SetShaderParameters(ID3D11DeviceContext* deviceContext, XMMATRIX worldMatrix, XMMATRIX viewMatrix, XMMATRIX projectionMatrix,
+	LightBufferType lightBufferObj, WaveBufferType waveBufferObj, XMFLOAT3 cameraPosition)
 {
 	worldMatrix = XMMatrixTranspose(worldMatrix);
 	viewMatrix = XMMatrixTranspose(viewMatrix);
@@ -128,8 +135,8 @@ bool WaterShader::SetShaderParameters(ID3D11DeviceContext* deviceContext, XMMATR
 	tmpMatrix.world = worldMatrix;
 	tmpMatrix.view = viewMatrix;
 	tmpMatrix.projection = projectionMatrix;
-	//if (NeedsUpdating("model", &tmpMatrix, sizeof(MatrixBufferType)))
-	//{
+	if (NeedsUpdating("model", &tmpMatrix, sizeof(MatrixBufferType)))
+	{
 		CheckSuccess(deviceContext->Map(m_matrixBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource));
 		auto matrixBufferPtr = (MatrixBufferType*)mappedResource.pData;
 		matrixBufferPtr->world = worldMatrix;
@@ -140,7 +147,7 @@ bool WaterShader::SetShaderParameters(ID3D11DeviceContext* deviceContext, XMMATR
 		deviceContext->Unmap(m_matrixBuffer, 0);
 
 		m_shaderCache["model"] = &tmpMatrix;
-	//}
+	}
 
 	bufferNumber = 1;
 
@@ -153,10 +160,27 @@ bool WaterShader::SetShaderParameters(ID3D11DeviceContext* deviceContext, XMMATR
 		std::copy(std::begin(waveBufferObj.waves), std::end(waveBufferObj.waves), std::begin(waveBufferPtr->waves));
 
 		deviceContext->VSSetConstantBuffers(bufferNumber, 1, &m_waveBuffer);
+		deviceContext->PSSetConstantBuffers(1, 1, &m_waveBuffer); // Override for PS
 		deviceContext->Unmap(m_waveBuffer, 0);
 
-		m_shaderCache["waves"] = &waveBufferObj;
+	//	m_shaderCache["waves"] = &waveBufferObj;
 	//}
+
+	bufferNumber = 2;
+	CameraBufferType tmpCamera;
+	tmpCamera.cameraPoisition = cameraPosition;
+	tmpCamera.padding = 0.0f;
+	if (NeedsUpdating("camera", &tmpCamera, sizeof(CameraBufferType)))
+	{
+		CheckSuccess(deviceContext->Map(m_cameraBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource));
+		auto cameraBufferPtr = (CameraBufferType*)mappedResource.pData;
+		cameraBufferPtr->cameraPoisition = cameraPosition;
+		cameraBufferPtr->padding = 0.0f;
+		deviceContext->VSSetConstantBuffers(bufferNumber, 1, &m_cameraBuffer);
+		deviceContext->Unmap(m_cameraBuffer, 0);
+
+		m_shaderCache["camera"] = &tmpCamera;
+	}
 
 	/************************* PIXEL SHADER ************************/
 
@@ -177,5 +201,6 @@ bool WaterShader::SetShaderParameters(ID3D11DeviceContext* deviceContext, XMMATR
 
 		m_shaderCache["light"] = &lightBufferObj;
 	}
+
 	return true;
 }

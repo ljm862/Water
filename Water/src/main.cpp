@@ -4,6 +4,7 @@
 #include "framework.h"
 #include "Resource.h"
 #include "Application.h"
+#include <iostream>
 
 #define MAX_LOADSTRING 100
 
@@ -34,6 +35,15 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	{
 		return FALSE;
 	}
+
+#ifdef DEBUG
+	AllocConsole();
+	FILE* fp;
+	freopen_s(&fp, "CONOUT$", "w", stdout);
+	freopen_s(&fp, "CONOUT$", "w", stderr);
+	freopen_s(&fp, "CONIN$", "r", stdin);
+	std::cout << "Test" << std::endl;
+#endif
 
 	auto application = std::make_unique<Application>();
 	bool done = !application->Init(m_hWnd);

@@ -24,6 +24,8 @@ public:
     bool Init(float wavelength, float amplitude, float speed, float direction, XMFLOAT2 position);
     void UpdateTime();
 
+    float GetTime();
+
     OptimisedWaveType GetOptimisedBuffer();
 
 private:

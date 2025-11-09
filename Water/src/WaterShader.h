@@ -5,7 +5,7 @@
 #include "Utils.h"
 #include "Wave.h"
 
-const int NUM_WAVES = 4;
+const int NUM_WAVES = 64;
 class WaterShader : public Shader
 {
 private:
@@ -42,18 +42,19 @@ public:
 	~WaterShader();
 	std::string GetShaderName() override;
 	bool Init(ID3D11Device*, HWND) override;
-	bool Render(ID3D11DeviceContext*, int, XMMATRIX, XMMATRIX, XMMATRIX, XMFLOAT3, XMFLOAT4, XMFLOAT4, XMFLOAT4, float, std::vector<Wave>);
+	bool Render(ID3D11DeviceContext*, int, XMMATRIX, XMMATRIX, XMMATRIX, XMFLOAT3, XMFLOAT3, XMFLOAT4, XMFLOAT4, XMFLOAT4, float, std::vector<Wave>);
 
 private:
 	bool InitShader(ID3D11Device*, HWND, std::wstring, std::wstring) override;
 	void ShutdownShader() override;
 	void RenderShader(ID3D11DeviceContext*, int) override;
-	bool SetShaderParameters(ID3D11DeviceContext*, XMMATRIX, XMMATRIX, XMMATRIX, LightBufferType, WaveBufferType);
+	bool SetShaderParameters(ID3D11DeviceContext*, XMMATRIX, XMMATRIX, XMMATRIX, LightBufferType, WaveBufferType, XMFLOAT3);
 
 
 private:
 	ID3D11Buffer* m_lightBuffer;
 	ID3D11Buffer* m_waveBuffer;
+	ID3D11Buffer* m_cameraBuffer;
 
 };
 
